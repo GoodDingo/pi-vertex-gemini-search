@@ -186,8 +186,22 @@ function estimateCost(params: {
   };
 }
 
-function costLine(cost: CostEstimate): string {
-  return `Estimated cost: ${money(cost.totalEur, "EUR")} (${money(cost.totalUsd, "USD")}). ${cost.pricingNote}`;
+function summaryLine(params: {
+  model: string;
+  region: string;
+  cost: CostEstimate;
+  sourceCount: number;
+  serviceTier: "flex" | "standard";
+}): string {
+  const sourceLabel = `${params.sourceCount} source${params.sourceCount === 1 ? "" : "s"}`;
+  const pricingLabel = params.serviceTier === "flex" ? "flex pricing" : "standard pricing";
+  return (
+    `◆ Gemini Search [` +
+    `${params.model}, ${params.region}, ` +
+    `${money(params.cost.totalEur, "EUR")}/${money(params.cost.totalUsd, "USD")}, ` +
+    `${sourceLabel}, ${pricingLabel}` +
+    `]`
+  );
 }
 
 function osc8(url: string, label: string): string {
@@ -207,12 +221,31 @@ function withClickableLinks(text: string, sources: SourceLink[] = []): string {
   return rendered;
 }
 
-function renderSearchResult(result: any) {
+function renderSearchResult(result: any, _options?: any, theme?: any) {
   const text = result.content
     ?.filter((part: { type?: string; text?: string }) => part.type === "text")
     .map((part: { text?: string }) => part.text ?? "")
     .join("\n") ?? "";
-  return new Text(withClickableLinks(text, result.details?.sources), 0, 0);
+
+  const linked = withClickableLinks(text, result.details?.sources);
+  if (!theme) return new Text(linked, 0, 0);
+
+  const colored = linked
+    .split("\n")
+    .map((line) => {
+      if (line.startsWith("◆ Gemini Search [")) {
+        const open = line.indexOf("[");
+        const title = line.slice(0, open).trimEnd();
+        const meta = line.slice(open);
+        return `${theme.fg("accent", theme.bold(title))} ${theme.fg("muted", meta)}`;
+      }
+      if (line === "Sources:") return theme.fg("accent", theme.bold(line));
+      if (/^\d+\. /.test(line)) return theme.fg("info", line);
+      return line;
+    })
+    .join("\n");
+
+  return new Text(colored, 0, 0);
 }
 
 interface RunOptions {
@@ -449,10 +482,13 @@ async function runSearch(
     usage: data.usageMetadata,
     searchQueries,
   });
-  const endpointLabel = `${VERTEX_REGION} Vertex AI endpoint`;
-  const provenance =
-    `Search result retrieved from Vertex AI Gemini ${model} via ${endpointLabel} (${usedServiceTier} tier).\n` +
-    costLine(cost);
+  const provenance = summaryLine({
+    model,
+    region: VERTEX_REGION,
+    cost,
+    sourceCount: sources.length,
+    serviceTier: usedServiceTier,
+  });
   const sourceLines = sources.map(
     (s) => `${s.index}. ${s.host ? s.host + " — " : ""}${s.url}`,
   );

@@ -17,7 +17,7 @@ Both tools:
 - Can read specific URLs passed in the query via Gemini `url_context`.
 - Resolve Gemini `vertexaisearch.cloud.google.com` redirect links to clean destination URLs.
 - Render source URLs as OSC-8 terminal hyperlinks in the Pi TUI when supported by your terminal.
-- Prefix results with Vertex AI provenance and an estimated per-query cost.
+- Prefix results with a compact, colored Vertex AI provenance/cost summary in Pi TUI.
 
 ## Vertex AI authentication
 
@@ -45,7 +45,13 @@ Override with environment variables before starting `pi`.
 
 ## Cost estimate configuration
 
-Each result includes an estimated cost line. Defaults:
+Each result includes a compact estimated cost summary, for example:
+
+```text
+◆ Gemini Search [gemini-3.1-flash-lite, eu, €0.0131/$0.0141, 2 sources, standard pricing]
+```
+
+Defaults:
 
 - `GEMINI_SEARCH_GROUNDING_USD_PER_1000=14`
 - `USD_TO_EUR=0.93`
