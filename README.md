@@ -17,7 +17,7 @@ Both tools:
 - Can read specific URLs passed in the query via Gemini `url_context`.
 - Resolve Gemini `vertexaisearch.cloud.google.com` redirect links to clean destination URLs.
 - Render source URLs as OSC-8 terminal hyperlinks in the Pi TUI when supported by your terminal.
-- Prefix results with a compact, colored Vertex AI provenance/cost summary in Pi TUI.
+- Prefix results with a compact, brutalist high-contrast Vertex AI provenance/cost summary in Pi TUI.
 
 ## Vertex AI authentication
 

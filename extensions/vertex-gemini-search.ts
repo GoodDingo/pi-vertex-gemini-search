@@ -204,48 +204,56 @@ function summaryLine(params: {
   );
 }
 
+function ansi(code: string, text: string): string {
+  return `\x1b[${code}m${text}\x1b[0m`;
+}
+
 function osc8(url: string, label: string): string {
   return `\x1b]8;;${url}\x07${label}\x1b]8;;\x07`;
 }
 
-function withClickableLinks(text: string, sources: SourceLink[] = []): string {
-  let rendered = text;
-  for (const source of sources) {
-    const fullLabel = source.host ? `${source.host} — ${source.url}` : source.url;
-    if (rendered.includes(fullLabel)) {
-      rendered = rendered.replace(fullLabel, osc8(source.url, fullLabel));
-    } else {
-      rendered = rendered.replace(source.url, osc8(source.url, source.url));
-    }
-  }
-  return rendered;
+function linkifyUrls(line: string): string {
+  return line.replace(/https?:\/\/[^\s)]+/g, (raw) => {
+    const trailing = raw.match(/[.,;:]$/)?.[0] ?? "";
+    const url = trailing ? raw.slice(0, -1) : raw;
+    return `${osc8(url, ansi("1;4;96", url))}${trailing}`;
+  });
 }
 
-function renderSearchResult(result: any, _options?: any, theme?: any) {
+function brutalistLine(line: string): string {
+  if (line.startsWith("◆ Gemini Search [")) {
+    const open = line.indexOf("[");
+    const meta = open >= 0 ? line.slice(open) : "";
+    return `${ansi("1;30;103", " ◆ GEMINI SEARCH ")} ${ansi("1;96", meta)}`;
+  }
+
+  if (line === "Sources:") {
+    return ansi("1;30;106", " SOURCES ");
+  }
+
+  const sourceMatch = line.match(/^(\d+)\.\s+(.+?)\s+[—-]\s+(https?:\/\/\S+)$/);
+  if (sourceMatch) {
+    const [, index, host, url] = sourceMatch;
+    return [
+      ansi("1;33", `${index}.`),
+      ansi("1;95", host),
+      ansi("90", "—"),
+      osc8(url, ansi("1;4;96", url)),
+    ].join(" ");
+  }
+
+  if (line.trim() === "") return line;
+
+  return ansi("97", linkifyUrls(line));
+}
+
+function renderSearchResult(result: any) {
   const text = result.content
     ?.filter((part: { type?: string; text?: string }) => part.type === "text")
     .map((part: { text?: string }) => part.text ?? "")
     .join("\n") ?? "";
 
-  const linked = withClickableLinks(text, result.details?.sources);
-  if (!theme) return new Text(linked, 0, 0);
-
-  const colored = linked
-    .split("\n")
-    .map((line) => {
-      if (line.startsWith("◆ Gemini Search [")) {
-        const open = line.indexOf("[");
-        const title = line.slice(0, open).trimEnd();
-        const meta = line.slice(open);
-        return `${theme.fg("accent", theme.bold(title))} ${theme.fg("muted", meta)}`;
-      }
-      if (line === "Sources:") return theme.fg("accent", theme.bold(line));
-      if (/^\d+\. /.test(line)) return theme.fg("info", line);
-      return line;
-    })
-    .join("\n");
-
-  return new Text(colored, 0, 0);
+  return new Text(text.split("\n").map(brutalistLine).join("\n"), 0, 0);
 }
 
 interface RunOptions {
