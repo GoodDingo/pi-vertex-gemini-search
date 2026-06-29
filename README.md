@@ -16,6 +16,8 @@ Both tools:
 - Ground answers with Google Search.
 - Can read specific URLs passed in the query via Gemini `url_context`.
 - Resolve Gemini `vertexaisearch.cloud.google.com` redirect links to clean destination URLs.
+- Render source URLs as OSC-8 terminal hyperlinks in the Pi TUI when supported by your terminal.
+- Prefix results with Vertex AI provenance and an estimated per-query cost.
 
 ## Vertex AI authentication
 
@@ -40,6 +42,16 @@ Defaults:
 - `GEMINI_MODEL_LONG=gemini-3.5-flash`
 
 Override with environment variables before starting `pi`.
+
+## Cost estimate configuration
+
+Each result includes an estimated cost line. Defaults:
+
+- `GEMINI_SEARCH_GROUNDING_USD_PER_1000=14`
+- `USD_TO_EUR=0.93`
+- `VERTEX_FLEX_TOKEN_DISCOUNT=0.5`
+
+The estimate uses response token counts from Vertex AI. Flex is attempted first via the Vertex AI Flex PayGo headers; if the project/region does not support Flex, the extension falls back to standard tier and marks the result as `standard tier`.
 
 ## Install locally
 

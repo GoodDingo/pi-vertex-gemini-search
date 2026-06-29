@@ -18,6 +18,7 @@
 
 import { execFileSync } from "node:child_process";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
 const VERTEX_PROJECT_ID = process.env["VERTEX_PROJECT_ID"] ?? "rd-aise-prod766-dev";
@@ -27,6 +28,12 @@ const GEMINI_MODEL_LONG = process.env["GEMINI_MODEL_LONG"] ?? "gemini-3.5-flash"
 const GEMINI_ENDPOINT = (model: string) =>
   `https://aiplatform.${VERTEX_REGION}.rep.googleapis.com/v1/projects/${VERTEX_PROJECT_ID}/locations/${VERTEX_REGION}/publishers/google/models/${model}:generateContent`;
 const MAX_SOURCES = 6;
+const SEARCH_GROUNDING_USD_PER_1000 = Number(
+  process.env["GEMINI_SEARCH_GROUNDING_USD_PER_1000"] ?? "14",
+);
+const USD_TO_EUR = Number(process.env["USD_TO_EUR"] ?? "0.93");
+const FLEX_TOKEN_DISCOUNT = Number(process.env["VERTEX_FLEX_TOKEN_DISCOUNT"] ?? "0.5");
+let flexUnavailableForSession = false;
 // Transient statuses Google recommends retrying with exponential backoff.
 // 503 in particular signals temporary overload / high demand on the model.
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
@@ -70,7 +77,32 @@ interface GeminiResponse {
       groundingChunks?: Array<{ web?: { uri?: string; title?: string } }>;
     };
   }>;
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    thoughtsTokenCount?: number;
+    totalTokenCount?: number;
+    toolUsePromptTokenCount?: number;
+  };
   error?: { message?: string };
+}
+
+interface SourceLink {
+  index: number;
+  host: string;
+  url: string;
+}
+
+interface CostEstimate {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  searchQueries: number;
+  tokenUsd: number;
+  groundingUsd: number;
+  totalUsd: number;
+  totalEur: number;
+  pricingNote: string;
 }
 
 /**
@@ -101,6 +133,88 @@ function hostOf(url: string): string {
   }
 }
 
+function modelPricingUsdPerMillion(model: string): { input: number; output: number } {
+  if (model.includes("3.1-flash-lite")) return { input: 0.25, output: 1.5 };
+  if (model.includes("3.5-flash")) return { input: 1.5, output: 9 };
+  return { input: 0, output: 0 };
+}
+
+function money(amount: number, currency: "USD" | "EUR"): string {
+  const symbol = currency === "USD" ? "$" : "€";
+  if (amount < 0.01) return `${symbol}${amount.toFixed(6)}`;
+  return `${symbol}${amount.toFixed(4)}`;
+}
+
+function estimateCost(params: {
+  model: string;
+  serviceTier: "flex" | "standard";
+  usage?: GeminiResponse["usageMetadata"];
+  searchQueries: number;
+}): CostEstimate {
+  const inputTokens = params.usage?.promptTokenCount ?? 0;
+  const outputTokens =
+    (params.usage?.candidatesTokenCount ?? 0) +
+    (params.usage?.thoughtsTokenCount ?? 0);
+  const totalTokens = params.usage?.totalTokenCount ?? inputTokens + outputTokens;
+  const pricing = modelPricingUsdPerMillion(params.model);
+  const standardTokenUsd =
+    (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
+  const tokenDiscount = params.serviceTier === "flex" ? FLEX_TOKEN_DISCOUNT : 1;
+  const tokenUsd = standardTokenUsd * tokenDiscount;
+  const groundingUsd =
+    (params.searchQueries * SEARCH_GROUNDING_USD_PER_1000) / 1000;
+  const totalUsd = tokenUsd + groundingUsd;
+  const totalEur = totalUsd * USD_TO_EUR;
+
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    searchQueries: params.searchQueries,
+    tokenUsd,
+    groundingUsd,
+    totalUsd,
+    totalEur,
+    pricingNote:
+      `Google Search grounding ${params.searchQueries} × $${SEARCH_GROUNDING_USD_PER_1000}/1k queries = ${money(groundingUsd, "USD")}; ` +
+      `tokens ${inputTokens} in / ${outputTokens} out at ${params.model} rates` +
+      (params.serviceTier === "flex"
+        ? ` with Flex ${Math.round((1 - FLEX_TOKEN_DISCOUNT) * 100)}% token discount`
+        : " at standard tier") +
+      ` = ${money(tokenUsd, "USD")}. ` +
+      `Estimate uses USD→EUR=${USD_TO_EUR}.`,
+  };
+}
+
+function costLine(cost: CostEstimate): string {
+  return `Estimated cost: ${money(cost.totalEur, "EUR")} (${money(cost.totalUsd, "USD")}). ${cost.pricingNote}`;
+}
+
+function osc8(url: string, label: string): string {
+  return `\x1b]8;;${url}\x07${label}\x1b]8;;\x07`;
+}
+
+function withClickableLinks(text: string, sources: SourceLink[] = []): string {
+  let rendered = text;
+  for (const source of sources) {
+    const fullLabel = source.host ? `${source.host} — ${source.url}` : source.url;
+    if (rendered.includes(fullLabel)) {
+      rendered = rendered.replace(fullLabel, osc8(source.url, fullLabel));
+    } else {
+      rendered = rendered.replace(source.url, osc8(source.url, source.url));
+    }
+  }
+  return rendered;
+}
+
+function renderSearchResult(result: any) {
+  const text = result.content
+    ?.filter((part: { type?: string; text?: string }) => part.type === "text")
+    .map((part: { text?: string }) => part.text ?? "")
+    .join("\n") ?? "";
+  return new Text(withClickableLinks(text, result.details?.sources), 0, 0);
+}
+
 interface RunOptions {
   query: string;
   detail: "short" | "long";
@@ -111,8 +225,13 @@ async function runSearch(
   signal: AbortSignal,
 ): Promise<{
   text: string;
+  model: string;
+  endpoint: string;
+  serviceTier: "flex" | "standard";
+  sources: SourceLink[];
   sourceCount: number;
   groundingQueries: string[];
+  cost: CostEstimate;
 }> {
   const accessToken = resolveAccessToken();
 
@@ -150,12 +269,17 @@ async function runSearch(
       "any" in AbortSignal
         ? AbortSignal.any([signal, timeoutSignal])
         : timeoutSignal;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${accessToken}`,
+    };
+    if (serviceTier === "flex") {
+      headers["X-Vertex-AI-LLM-Shared-Request-Type"] = "flex";
+      headers["X-Vertex-AI-LLM-Request-Type"] = "shared";
+    }
     return fetch(GEMINI_ENDPOINT(model), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${accessToken}`,
-      },
+      headers,
       body: JSON.stringify(buildBody(serviceTier)),
       signal: combined,
     });
@@ -244,17 +368,35 @@ async function runSearch(
   // 2) On timeout / network error OR a retryable status that exhausted retries,
   //    fall back to the standard tier (longer timeout) and retry there too.
   let response: Response;
-  try {
-    response = await fetchWithRetry("flex", flexTimeout);
-  } catch (err) {
-    if (signal.aborted) throw err; // user cancelled — don't retry
+  let usedServiceTier: "flex" | "standard" = flexUnavailableForSession
+    ? "standard"
+    : "flex";
+  if (flexUnavailableForSession) {
     response = await fetchWithRetry("standard", standardTimeout);
+  } else {
+    try {
+      response = await fetchWithRetry("flex", flexTimeout);
+      usedServiceTier = "flex";
+    } catch (err) {
+      if (signal.aborted) throw err; // user cancelled — don't retry
+      response = await fetchWithRetry("standard", standardTimeout);
+      usedServiceTier = "standard";
+    }
   }
 
   // Flex can still return a retryable error after exhausting its retries
   // (common — the Flex tier sheds load aggressively). Give standard a turn.
   if (!response.ok && RETRYABLE_STATUS.has(response.status)) {
     response = await fetchWithRetry("standard", standardTimeout);
+    usedServiceTier = "standard";
+  }
+
+  // Some Vertex projects/regions don't support Flex. In that case Vertex returns
+  // a non-retryable 400, but the same request is valid at the standard tier.
+  if (!response.ok && usedServiceTier === "flex" && response.status === 400) {
+    flexUnavailableForSession = true;
+    response = await fetchWithRetry("standard", standardTimeout);
+    usedServiceTier = "standard";
   }
 
   if (!response.ok) {
@@ -285,23 +427,49 @@ async function runSearch(
   );
 
   const seen = new Set<string>();
-  const sources: string[] = [];
+  const sources: SourceLink[] = [];
   for (const u of resolved) {
     if (seen.has(u)) continue;
     seen.add(u);
-    const host = hostOf(u);
-    sources.push(`${sources.length + 1}. ${host ? host + " — " : ""}${u}`);
+    sources.push({
+      index: sources.length + 1,
+      host: hostOf(u),
+      url: u,
+    });
   }
 
+  const groundingQueries = candidate?.groundingMetadata?.webSearchQueries ?? [];
+  const searchQueries = Math.max(
+    groundingQueries.length,
+    sources.length > 0 ? 1 : 0,
+  );
+  const cost = estimateCost({
+    model,
+    serviceTier: usedServiceTier,
+    usage: data.usageMetadata,
+    searchQueries,
+  });
+  const endpointLabel = `${VERTEX_REGION} Vertex AI endpoint`;
+  const provenance =
+    `Search result retrieved from Vertex AI Gemini ${model} via ${endpointLabel} (${usedServiceTier} tier).\n` +
+    costLine(cost);
+  const sourceLines = sources.map(
+    (s) => `${s.index}. ${s.host ? s.host + " — " : ""}${s.url}`,
+  );
   const text =
-    sources.length > 0
-      ? `${answer}\n\nSources:\n${sources.join("\n")}`
-      : answer;
+    sourceLines.length > 0
+      ? `${provenance}\n\n${answer}\n\nSources:\n${sourceLines.join("\n")}`
+      : `${provenance}\n\n${answer}`;
 
   return {
     text,
+    model,
+    endpoint: GEMINI_ENDPOINT(model),
+    serviceTier: usedServiceTier,
+    sources,
     sourceCount: sources.length,
-    groundingQueries: candidate?.groundingMetadata?.webSearchQueries ?? [],
+    groundingQueries,
+    cost,
   };
 }
 
@@ -336,16 +504,22 @@ export default function (pi: ExtensionAPI) {
         return {
           content: [{ type: "text" as const, text: result.text }],
           details: {
-            model: GEMINI_MODEL_SHORT,
+            model: result.model,
+            endpoint: result.endpoint,
+            region: VERTEX_REGION,
+            serviceTier: result.serviceTier,
             depth: "short",
             sourceCount: result.sourceCount,
+            sources: result.sources,
             groundingQueries: result.groundingQueries,
+            cost: result.cost,
           },
         };
       } catch (err) {
         return errorResult(err instanceof Error ? err.message : String(err));
       }
     },
+    renderResult: renderSearchResult,
   });
 
   // In-depth research on a complex topic.
@@ -371,15 +545,21 @@ export default function (pi: ExtensionAPI) {
         return {
           content: [{ type: "text" as const, text: result.text }],
           details: {
-            model: GEMINI_MODEL_LONG,
+            model: result.model,
+            endpoint: result.endpoint,
+            region: VERTEX_REGION,
+            serviceTier: result.serviceTier,
             depth: "long",
             sourceCount: result.sourceCount,
+            sources: result.sources,
             groundingQueries: result.groundingQueries,
+            cost: result.cost,
           },
         };
       } catch (err) {
         return errorResult(err instanceof Error ? err.message : String(err));
       }
     },
+    renderResult: renderSearchResult,
   });
 }
