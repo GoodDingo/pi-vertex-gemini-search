@@ -1,13 +1,16 @@
 {
-  "name": "pi-vertex-gemini-search",
+  "name": "@nilskluewer/pi-vertex-gemini-search",
   "version": "0.1.0",
-  "description": "Web search & research tools for the Pi coding agent, backed by Vertex AI Gemini with Google Search grounding — keeps raw page noise out of your context.",
+  "description": "Vertex AI Gemini grounded web search and research tools for Pi, using Google Cloud Agent Platform credentials.",
   "type": "module",
   "keywords": [
     "pi-package",
     "pi",
     "pi-coding-agent",
     "pi-extension",
+    "gcp",
+    "google-cloud",
+    "agent-platform",
     "vertex-ai",
     "gemini",
     "web-search",
@@ -32,6 +35,23 @@
     ]
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nilskluewer/pi-vertex-gemini-search.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nilskluewer/pi-vertex-gemini-search/issues"
+  },
+  "homepage": "https://github.com/nilskluewer/pi-vertex-gemini-search#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "pack:dry": "npm pack --dry-run"
   }
 }

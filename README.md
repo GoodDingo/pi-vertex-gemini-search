@@ -1,6 +1,6 @@
-# pi-vertex-gemini-search
+# @nilskluewer/pi-vertex-gemini-search
 
-Web search & research tools for the [Pi coding agent](https://github.com/earendil-works/pi), backed by **Vertex AI Gemini** with Google Search grounding.
+Web search & research tools for the [Pi coding agent](https://pi.dev/), backed by **Vertex AI Gemini** with Google Search grounding and Google Cloud Agent Platform credentials.
 
 This is a Vertex AI variant of the Gemini search extension. It does **not** use a Gemini API key.
 
@@ -62,9 +62,15 @@ Defaults:
 
 The estimate uses response token counts from Vertex AI. Flex is attempted first via the Vertex AI Flex PayGo headers; if the project/region does not support Flex, the extension falls back to standard tier and marks the result as `standard tier`.
 
-## Install locally
+## Install
 
-From this checkout:
+From npm:
+
+```bash
+pi install npm:@nilskluewer/pi-vertex-gemini-search
+```
+
+From a local checkout:
 
 ```bash
 pi install /path/to/pi-vertex-gemini-search
