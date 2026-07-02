@@ -34,14 +34,17 @@ gcloud auth login
 
 ## Configuration
 
+Required:
+
+- `VERTEX_PROJECT_ID` — your Google Cloud project ID with Vertex AI enabled.
+
 Defaults:
 
-- `VERTEX_PROJECT_ID=rd-aise-prod766-dev`
 - `VERTEX_REGION=eu`
 - `GEMINI_MODEL_SHORT=gemini-3.1-flash-lite`
 - `GEMINI_MODEL_LONG=gemini-3.5-flash`
 
-Override with environment variables before starting `pi`.
+Set or override these environment variables before starting `pi`.
 
 ## Cost estimate configuration
 
@@ -64,7 +67,7 @@ The estimate uses response token counts from Vertex AI. Flex is attempted first 
 From this checkout:
 
 ```bash
-pi install /Users/A200048/GitLab/pi-vertex-gemini-search
+pi install /path/to/pi-vertex-gemini-search
 ```
 
 ## License

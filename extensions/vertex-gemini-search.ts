@@ -13,7 +13,7 @@
  * `location` header, no body download) so only clean links enter your context.
  *
  * Authentication uses Application Default Credentials via `gcloud auth print-access-token`.
- * Configure project/region/model with env vars or defaults below.
+ * Configure project, region, and models with environment variables.
  */
 
 import { execFileSync } from "node:child_process";
@@ -21,12 +21,17 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
-const VERTEX_PROJECT_ID = process.env["VERTEX_PROJECT_ID"] ?? "rd-aise-prod766-dev";
+const VERTEX_PROJECT_ID = process.env["VERTEX_PROJECT_ID"];
 const VERTEX_REGION = process.env["VERTEX_REGION"] ?? "eu";
 const GEMINI_MODEL_SHORT = process.env["GEMINI_MODEL_SHORT"] ?? "gemini-3.1-flash-lite";
 const GEMINI_MODEL_LONG = process.env["GEMINI_MODEL_LONG"] ?? "gemini-3.5-flash";
-const GEMINI_ENDPOINT = (model: string) =>
-  `https://aiplatform.${VERTEX_REGION}.rep.googleapis.com/v1/projects/${VERTEX_PROJECT_ID}/locations/${VERTEX_REGION}/publishers/google/models/${model}:generateContent`;
+const GEMINI_ENDPOINT = (model: string) => {
+  if (!VERTEX_PROJECT_ID) {
+    throw new Error("VERTEX_PROJECT_ID is required for Vertex AI Gemini Search.");
+  }
+
+  return `https://aiplatform.${VERTEX_REGION}.rep.googleapis.com/v1/projects/${VERTEX_PROJECT_ID}/locations/${VERTEX_REGION}/publishers/google/models/${model}:generateContent`;
+};
 const MAX_SOURCES = 6;
 const SEARCH_GROUNDING_USD_PER_1000 = Number(
   process.env["GEMINI_SEARCH_GROUNDING_USD_PER_1000"] ?? "14",
