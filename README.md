@@ -40,9 +40,9 @@ Required:
 
 Defaults:
 
-- `VERTEX_REGION=eu`
-- `GEMINI_MODEL_SHORT=gemini-3.1-flash-lite`
-- `GEMINI_MODEL_LONG=gemini-3.5-flash`
+- `VERTEX_REGION=global`
+- `GEMINI_MODEL_SHORT=gemini-3.5-flash-lite`
+- `GEMINI_MODEL_LONG=gemini-3.6-flash`
 
 Set or override these environment variables before starting `pi`.
 
