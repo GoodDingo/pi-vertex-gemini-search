@@ -38,6 +38,8 @@ const SEARCH_GROUNDING_USD_PER_1000 = Number(
 );
 const USD_TO_EUR = Number(process.env["USD_TO_EUR"] ?? "0.93");
 const FLEX_TOKEN_DISCOUNT = Number(process.env["VERTEX_FLEX_TOKEN_DISCOUNT"] ?? "0.5");
+type PricingPreference = "flex" | "standard";
+let pricingPreference: PricingPreference = "flex";
 let flexUnavailableForSession = false;
 // Transient statuses Google recommends retrying with exponential backoff.
 // 503 in particular signals temporary overload / high demand on the model.
@@ -414,17 +416,18 @@ async function runSearch(
   // 2) On timeout / network error OR a retryable status that exhausted retries,
   //    fall back to the standard tier (longer timeout) and retry there too.
   let response: Response;
-  let usedServiceTier: "flex" | "standard" = flexUnavailableForSession
-    ? "standard"
-    : "flex";
-  if (flexUnavailableForSession) {
+  let usedServiceTier: "flex" | "standard" =
+    pricingPreference === "standard" || flexUnavailableForSession
+      ? "standard"
+      : "flex";
+  if (pricingPreference === "standard" || flexUnavailableForSession) {
     response = await fetchWithRetry("standard", standardTimeout);
   } else {
     try {
       response = await fetchWithRetry("flex", flexTimeout);
       usedServiceTier = "flex";
     } catch (err) {
-      if (signal.aborted) throw err; // user cancelled — don't retry
+      if (signal.aborted) throw err; // user cancelled - don't retry
       response = await fetchWithRetry("standard", standardTimeout);
       usedServiceTier = "standard";
     }
@@ -530,6 +533,42 @@ function errorResult(message: string) {
 }
 
 export default function (pi: ExtensionAPI) {
+  pi.registerCommand("search-pricing", {
+    description: "Show or set the Vertex Gemini Search pricing tier: flex or standard.",
+    handler: async (args, ctx) => {
+      const choice = args.trim().toLowerCase();
+      if (choice === "flex") {
+        pricingPreference = "flex";
+        flexUnavailableForSession = false;
+        ctx.ui.notify(
+          "Gemini Search will prefer Flex pricing and fall back to standard if needed.",
+          "info",
+        );
+        return;
+      }
+      if (choice === "standard") {
+        pricingPreference = "standard";
+        ctx.ui.notify("Gemini Search will use standard pricing.", "info");
+        return;
+      }
+      if (choice === "" || choice === "status") {
+        const availability =
+          pricingPreference === "flex" && flexUnavailableForSession
+            ? "Flex is unavailable for this session; searches currently use standard."
+            : `Gemini Search pricing preference: ${pricingPreference}.`;
+        ctx.ui.notify(
+          `${availability} Use /search-pricing flex or /search-pricing standard.`,
+          "info",
+        );
+        return;
+      }
+      ctx.ui.notify(
+        "Usage: /search-pricing [flex|standard|status]",
+        "error",
+      );
+    },
+  });
+
   // Quick verification / fact check.
   pi.registerTool({
     name: "web_search",

@@ -17,7 +17,7 @@ Both tools:
 - Can read specific URLs passed in the query via Gemini `url_context`.
 - Resolve Gemini `vertexaisearch.cloud.google.com` redirect links to clean destination URLs.
 - Render source URLs as OSC-8 terminal hyperlinks in the Pi TUI when supported by your terminal.
-- Prefix results with a compact, brutalist high-contrast Vertex AI provenance/cost summary in Pi TUI.
+- Prefix results with a compact, brutalist high-contrast Vertex AI provenance/cost summary in Pi TUI, including the actual `flex pricing` or `standard pricing` tier used for that call.
 
 ## Vertex AI authentication
 
@@ -60,7 +60,23 @@ Defaults:
 - `USD_TO_EUR=0.93`
 - `VERTEX_FLEX_TOKEN_DISCOUNT=0.5`
 
-The estimate uses response token counts from Vertex AI. Flex is attempted first via the Vertex AI Flex PayGo headers; if the project/region does not support Flex, the extension falls back to standard tier and marks the result as `standard tier`.
+The estimate uses response token counts from Vertex AI.
+Flex is preferred by default via the Vertex AI Flex PayGo headers.
+If the project or region does not support Flex, the extension falls back to the standard tier and reports `standard pricing` in that result.
+
+## Pricing-tier command
+
+Use the Pi command below to inspect or change the pricing preference for the current session:
+
+```text
+/search-pricing
+/search-pricing flex
+/search-pricing standard
+```
+
+`flex` is the default and falls back to standard when Flex is unavailable.
+`standard` bypasses Flex entirely.
+The command does not persist across Pi sessions.
 
 ## Install
 
