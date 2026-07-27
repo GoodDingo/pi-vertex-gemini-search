@@ -22,7 +22,7 @@ import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
 const VERTEX_PROJECT_ID = process.env["VERTEX_PROJECT_ID"];
-const VERTEX_REGION = process.env["VERTEX_REGION"] ?? "eu";
+const VERTEX_REGION = process.env["VERTEX_REGION"] ?? "global";
 const GEMINI_MODEL_SHORT = process.env["GEMINI_MODEL_SHORT"] ?? "gemini-3.1-flash-lite";
 const GEMINI_MODEL_LONG = process.env["GEMINI_MODEL_LONG"] ?? "gemini-3.5-flash";
 const GEMINI_ENDPOINT = (model: string) => {
