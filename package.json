@@ -1,6 +1,6 @@
 {
   "name": "@nilskluewer/pi-vertex-gemini-search",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Vertex AI Gemini grounded web search and research tools for Pi, using Google Cloud Agent Platform credentials.",
   "type": "module",
   "keywords": [
