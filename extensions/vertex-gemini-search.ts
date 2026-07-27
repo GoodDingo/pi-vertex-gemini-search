@@ -23,8 +23,8 @@ import { Type } from "typebox";
 
 const VERTEX_PROJECT_ID = process.env["VERTEX_PROJECT_ID"];
 const VERTEX_REGION = process.env["VERTEX_REGION"] ?? "global";
-const GEMINI_MODEL_SHORT = process.env["GEMINI_MODEL_SHORT"] ?? "gemini-3.1-flash-lite";
-const GEMINI_MODEL_LONG = process.env["GEMINI_MODEL_LONG"] ?? "gemini-3.5-flash";
+const GEMINI_MODEL_SHORT = process.env["GEMINI_MODEL_SHORT"] ?? "gemini-3.5-flash-lite";
+const GEMINI_MODEL_LONG = process.env["GEMINI_MODEL_LONG"] ?? "gemini-3.6-flash";
 const GEMINI_ENDPOINT = (model: string) => {
   if (!VERTEX_PROJECT_ID) {
     throw new Error("VERTEX_PROJECT_ID is required for Vertex AI Gemini Search.");
@@ -150,7 +150,9 @@ function hostOf(url: string): string {
 
 function modelPricingUsdPerMillion(model: string): { input: number; output: number } {
   if (model.includes("3.1-flash-lite")) return { input: 0.25, output: 1.5 };
+  if (model.includes("3.5-flash-lite")) return { input: 0.3, output: 2.5 };
   if (model.includes("3.5-flash")) return { input: 1.5, output: 9 };
+  if (model.includes("3.6-flash")) return { input: 1.5, output: 7.5 };
   return { input: 0, output: 0 };
 }
 
