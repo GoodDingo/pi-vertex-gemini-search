@@ -30,7 +30,15 @@ const GEMINI_ENDPOINT = (model: string) => {
     throw new Error("VERTEX_PROJECT_ID is required for Vertex AI Gemini Search.");
   }
 
-  return `https://aiplatform.${VERTEX_REGION}.rep.googleapis.com/v1/projects/${VERTEX_PROJECT_ID}/locations/${VERTEX_REGION}/publishers/google/models/${model}:generateContent`;
+  // "global" has no region prefix and no `.rep.` multi-region host — it's a
+  // plain aiplatform.googleapis.com call. "eu"/"us" multi-regions use the
+  // `.rep.` host. Other single regions (e.g. europe-west1) aren't supported here.
+  const host =
+    VERTEX_REGION === "global"
+      ? "aiplatform.googleapis.com"
+      : `aiplatform.${VERTEX_REGION}.rep.googleapis.com`;
+
+  return `https://${host}/v1/projects/${VERTEX_PROJECT_ID}/locations/${VERTEX_REGION}/publishers/google/models/${model}:generateContent`;
 };
 const MAX_SOURCES = 6;
 const SEARCH_GROUNDING_USD_PER_1000 = Number(
