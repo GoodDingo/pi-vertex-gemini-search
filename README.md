@@ -1,4 +1,4 @@
-# @nilskluewer/pi-vertex-gemini-search
+# Fork of @nilskluewer/pi-vertex-gemini-search
 
 Web search & research tools for the [Pi coding agent](https://pi.dev/), backed by **Vertex AI Gemini** with Google Search grounding and Google Cloud Agent Platform credentials.
 
@@ -80,10 +80,10 @@ The command does not persist across Pi sessions.
 
 ## Install
 
-From npm:
+From gh:
 
 ```bash
-pi install npm:@nilskluewer/pi-vertex-gemini-search
+pi install git:github.com/GoodDingo/pi-vertex-gemini-search
 ```
 
 From a local checkout:
