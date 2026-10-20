@@ -1,5 +1,8 @@
 # Fork of @nilskluewer/pi-vertex-gemini-search
 
+<details>
+  <summary>Original README...</summary>
+
 Web search & research tools for the [Pi coding agent](https://pi.dev/), backed by **Vertex AI Gemini** with Google Search grounding and Google Cloud Agent Platform credentials.
 
 This is a Vertex AI variant of the Gemini search extension. It does **not** use a Gemini API key.
@@ -95,3 +98,4 @@ pi install /path/to/pi-vertex-gemini-search
 ## License
 
 MIT
+</details>
